@@ -1,20 +1,87 @@
 # Reproducible Research: Peer Assessment 1
 
-
 ## Loading and preprocessing the data
+Delete intermediate files
+```{r}
+url <- 'https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip'
+zipfile <- 'activity.zip'
+download.file(url, method="curl", destfile=zipfile)
+unzip(zipfile)
+activity <- read.csv('activity.csv')
+file.remove('activity.csv')
+str(activity)
+```
 
 
 
-## What is mean total number of steps taken per day?
+## What is mean total number of steps taken per day
+```{r}
+hist(activity$steps)
+summary(activity$steps)
+``` 
 
 
 
 ## What is the average daily activity pattern?
+```{r}
+library(ggplot2)
+ggplot(activity, aes(interval, steps)) + geom_line(stat='summary', fun.y='mean') + theme_minimal()
 
+library(dplyr)
 
+steps.mean <- activity %.% 
+  select(interval, steps) %.%
+  group_by(interval) %.%
+  summarise(meansteps = mean(steps,na.rm=TRUE)) 
+
+with(steps.mean, plot(interval, meansteps, type = 'l'))
+```
+
+Which interval
+```{r}
+with(steps.mean, interval[which(max(meansteps) == meansteps)])
+```
+which (pun intended) matches with the chart
 
 ## Imputing missing values
+complete.cases counts number of rows without any NA
+the number of rows - complete.cases gives us the number of incomplete rows
+
+Use the mean step per date/
+```{r}
+nrow(activity) - sum(complete.cases(activity))
+library(Hmisc)
+```
 
 
+Impute the activity dataset with the means steps per interval (allready calculated)
+merge the activity dataframe with the means per interval
+```{r}
+temp <- merge(activity, steps.mean)
+temp[is.na(temp$steps),'steps'] <- temp$meansteps[is.na(temp$steps)]
+```
+
+Create plots comparing original data with imputed data. Imputed data have as expected as higher
+number of steps.
+```{r}
+par(mfrow = c(2,1), mar = c(4,4,1,1))
+hist(activity$steps)
+hist(temp$steps)
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+library(lubridate)
+activity$date <- as.Date(activity$date)
+activity$weekdayorweekend <- ifelse(wday(activity$date) %in% c(1,7), 'Weekend', 'Weekday')
+
+activity.daytype <- 
+  activity %.% group_by(interval, weekdayorweekend) %.% summarise(steps = mean(steps,na.rm=TRUE))
+
+
+xyplot(steps ~ interval | weekdayorweekend,  activity.daytype, type="l")
+ggplot(activity.daytype, aes(interval, steps)) + geom_line() + facet_wrap(~weekdayorweekend, ncol=1)
+
+```
+
+
